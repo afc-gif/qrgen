@@ -8,6 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Endroid\QrCode\QrCode;
 use Endroid\QrCode\Writer\PngWriter;
+use Endroid\QrCode\Writer\SvgWriter;
 use Endroid\QrCode\ErrorCorrectionLevel;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
@@ -99,7 +100,7 @@ class QrController extends Controller
             // Extract domain for filename
             $domain = parse_url($url, PHP_URL_HOST) ?? 'qr';
             $domain = str_replace('www.', '', $domain);
-            $filename = Str::slug($domain) . '.png';
+            $downloadName = Str::slug($domain);
 
             // Clean up old generated files before generating new one
             $this->cleanupOldGeneratedFiles();
@@ -110,23 +111,21 @@ class QrController extends Controller
             $qrCode->setSize(300);
             $qrCode->setMargin(10);
 
-            $writer = new PngWriter();
-            $result = $writer->write($qrCode);
-            $pngData = $result->getString();
+            [$imageData, $extension] = $this->generateQrImage($qrCode);
 
-            if ($logoPath && $this->hasGdSupport()) {
-                $pngData = $this->overlayLogo($pngData, Storage::disk('public')->path($logoPath));
+            if ($logoPath && $extension === 'png' && $this->hasGdSupport()) {
+                $imageData = $this->overlayLogo($imageData, Storage::disk('public')->path($logoPath));
             }
 
             // Save to storage
-            $path = 'qr-codes/' . uniqid('qr-', true) . '.png';
-            Storage::disk('public')->put($path, $pngData);
+            $path = 'qr-codes/' . uniqid('qr-', true) . '.' . $extension;
+            Storage::disk('public')->put($path, $imageData);
 
             // Store in session
             session([
                 'qr_code_path' => $path,
                 'original_url' => $url,
-                'filename' => $filename,
+                'filename' => $downloadName . '.' . $extension,
                 'logo_path' => $logoPath,
             ]);
 
@@ -235,12 +234,37 @@ class QrController extends Controller
 
     private function hasGdSupport(): bool
     {
-        return function_exists('imagecreatetruecolor') && function_exists('imagecreatefromstring');
+        return function_exists('imagecreatetruecolor')
+            && function_exists('imagecreatefromstring')
+            && function_exists('imagepng');
     }
 
     private function publicFileUrl(string $path): string
     {
         return route('qr.file', ['path' => $path], false);
+    }
+
+    /**
+     * Prefer PNG when GD exists; otherwise use SVG so QR generation still works
+     * on lean production images where ext-gd is not installed.
+     */
+    private function generateQrImage(QrCode $qrCode): array
+    {
+        if ($this->hasGdSupport()) {
+            try {
+                $result = (new PngWriter())->write($qrCode);
+
+                return [$result->getString(), 'png'];
+            } catch (Throwable $e) {
+                Log::warning('PNG QR generation failed; falling back to SVG.', [
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $result = (new SvgWriter())->write($qrCode);
+
+        return [$result->getString(), 'svg'];
     }
 
     private function redirectToRoute(string $route, array $parameters = []): RedirectResponse
@@ -250,7 +274,9 @@ class QrController extends Controller
 
     private function downloadFilenameFromPath(string $path): string
     {
-        return pathinfo($path, PATHINFO_FILENAME) . '.png';
+        $extension = pathinfo($path, PATHINFO_EXTENSION) ?: 'png';
+
+        return pathinfo($path, PATHINFO_FILENAME) . '.' . $extension;
     }
 
     private function isGeneratedPublicPath(string $path): bool

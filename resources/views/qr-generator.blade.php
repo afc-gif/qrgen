@@ -361,7 +361,7 @@
 
                     <div class="btn-group-actions">
                         <a href="{{ $downloadUrl }}" class="btn btn-primary">
-                            <i class="bi bi-download"></i> Download PNG
+                            <i class="bi bi-download"></i> Download QR
                         </a>
                         <a href="{{ $qrCode }}" target="_blank" rel="noopener" class="btn btn-secondary">
                             <i class="bi bi-eye"></i> Open Preview
