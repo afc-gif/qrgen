@@ -111,10 +111,11 @@ class QrController extends Controller
             $qrCode->setSize(300);
             $qrCode->setMargin(10);
 
-            [$imageData, $extension] = $this->generateQrImage($qrCode);
+            $logoFullPath = $logoPath ? Storage::disk('public')->path($logoPath) : null;
+            [$imageData, $extension] = $this->generateQrImage($qrCode, $logoFullPath);
 
             if ($logoPath && $extension === 'png' && $this->hasGdSupport()) {
-                $imageData = $this->overlayLogo($imageData, Storage::disk('public')->path($logoPath));
+                $imageData = $this->overlayLogo($imageData, $logoFullPath);
             }
 
             // Save to storage
@@ -248,7 +249,7 @@ class QrController extends Controller
      * Prefer PNG when GD exists; otherwise use SVG so QR generation still works
      * on lean production images where ext-gd is not installed.
      */
-    private function generateQrImage(QrCode $qrCode): array
+    private function generateQrImage(QrCode $qrCode, ?string $logoPath = null): array
     {
         if ($this->hasGdSupport()) {
             try {
@@ -263,8 +264,71 @@ class QrController extends Controller
         }
 
         $result = (new SvgWriter())->write($qrCode);
+        $svg = $result->getString();
 
-        return [$result->getString(), 'svg'];
+        if ($logoPath) {
+            $svg = $this->embedLogoInSvg($svg, $logoPath);
+        }
+
+        return [$svg, 'svg'];
+    }
+
+    private function embedLogoInSvg(string $svg, string $logoPath): string
+    {
+        if (!is_file($logoPath) || !is_readable($logoPath)) {
+            return $svg;
+        }
+
+        $logoData = file_get_contents($logoPath);
+        $mimeType = function_exists('mime_content_type') ? mime_content_type($logoPath) : null;
+
+        if (!$logoData || !is_string($mimeType) || !str_starts_with($mimeType, 'image/')) {
+            return $svg;
+        }
+
+        $size = $this->svgCanvasSize($svg);
+        $logoSize = (int) round($size * 0.25);
+        $padding = (int) round($size * 0.035);
+        $boxSize = $logoSize + ($padding * 2);
+        $boxX = ($size - $boxSize) / 2;
+        $boxY = ($size - $boxSize) / 2;
+        $logoX = ($size - $logoSize) / 2;
+        $logoY = ($size - $logoSize) / 2;
+        $dataUri = 'data:' . $mimeType . ';base64,' . base64_encode($logoData);
+
+        $logoMarkup = sprintf(
+            '<rect x="%s" y="%s" width="%s" height="%s" rx="%s" fill="#ffffff"/><image x="%s" y="%s" width="%s" height="%s" href="%s" preserveAspectRatio="xMidYMid meet"/>',
+            $this->svgNumber($boxX),
+            $this->svgNumber($boxY),
+            $this->svgNumber($boxSize),
+            $this->svgNumber($boxSize),
+            $this->svgNumber($padding),
+            $this->svgNumber($logoX),
+            $this->svgNumber($logoY),
+            $this->svgNumber($logoSize),
+            $this->svgNumber($logoSize),
+            htmlspecialchars($dataUri, ENT_QUOTES, 'UTF-8')
+        );
+
+        return str_replace('</svg>', $logoMarkup . '</svg>', $svg);
+    }
+
+    private function svgCanvasSize(string $svg): int
+    {
+        if (preg_match('/viewBox="0 0 ([0-9.]+) ([0-9.]+)"/', $svg, $matches)) {
+            return max(1, (int) round((float) $matches[1]));
+        }
+
+        if (preg_match('/width="([0-9.]+)px"/', $svg, $matches)) {
+            return max(1, (int) round((float) $matches[1]));
+        }
+
+        return 300;
+    }
+
+    private function svgNumber(float|int $value): string
+    {
+        return rtrim(rtrim(number_format((float) $value, 2, '.', ''), '0'), '.');
     }
 
     private function redirectToRoute(string $route, array $parameters = []): RedirectResponse
