@@ -366,13 +366,13 @@
                         <a href="{{ $qrCode }}" target="_blank" rel="noopener" class="btn btn-secondary">
                             <i class="bi bi-eye"></i> Open Preview
                         </a>
-                        <a href="{{ route('qr.reset') }}" class="btn btn-secondary">
+                        <a href="{{ route('qr.reset', [], false) }}" class="btn btn-secondary">
                             <i class="bi bi-arrow-repeat"></i> Generate Another
                         </a>
                     </div>
                 </div>
             @else
-                <form action="{{ route('qr.generate') }}" method="POST" enctype="multipart/form-data" id="qrForm">
+                <form action="{{ route('qr.generate', [], false) }}" method="POST" enctype="multipart/form-data" id="qrForm">
                     @csrf
                     <div class="form-group">
                         <label for="url" class="form-label">Enter URL</label>

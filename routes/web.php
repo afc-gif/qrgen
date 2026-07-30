@@ -4,7 +4,7 @@ use App\Http\Controllers\QrController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [QrController::class, 'show'])->name('qr.show');
-Route::get('/generate', fn () => redirect()->route('qr.show'));
+Route::get('/generate', fn () => response('', 302)->header('Location', route('qr.show', [], false)));
 Route::post('/generate', [QrController::class, 'generate'])->name('qr.generate');
 Route::get('/result', [QrController::class, 'result'])->name('qr.result');
 Route::get('/result/{filename}', [QrController::class, 'result'])->name('qr.result.file');

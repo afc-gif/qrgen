@@ -32,7 +32,7 @@ class QrController extends Controller
         $data = $this->qrViewData(true, $filename);
 
         if (!$data['qrCode']) {
-            return redirect()->route('qr.show');
+            return $this->redirectToRoute('qr.show');
         }
 
         return view('qr-generator', $data);
@@ -130,7 +130,7 @@ class QrController extends Controller
                 'logo_path' => $logoPath,
             ]);
 
-            return redirect()->route('qr.result.file', ['filename' => basename($path)]);
+            return $this->redirectToRoute('qr.result.file', ['filename' => basename($path)]);
         } catch (Throwable $e) {
             Log::error('Failed to generate QR code.', [
                 'url' => $request->input('url'),
@@ -153,7 +153,7 @@ class QrController extends Controller
         $path = $filename ? 'qr-codes/' . basename($filename) : $sessionPath;
 
         if (!$path) {
-            return redirect()->route('qr.show');
+            return $this->redirectToRoute('qr.show');
         }
 
         $fullPath = storage_path('app/public/' . $path);
@@ -162,7 +162,7 @@ class QrController extends Controller
             : $this->downloadFilenameFromPath($path);
 
         if (!$this->isGeneratedPublicPath($path) || !file_exists($fullPath)) {
-            return redirect()->route('qr.show')
+            return $this->redirectToRoute('qr.show')
                 ->withErrors(['message' => 'QR code file not found.']);
         }
 
@@ -185,7 +185,7 @@ class QrController extends Controller
         $this->deleteSessionGeneratedFiles();
 
         session()->forget(['qr_code_path', 'original_url', 'filename', 'logo_path']);
-        return redirect()->route('qr.show');
+        return $this->redirectToRoute('qr.show');
     }
 
     /**
@@ -241,6 +241,11 @@ class QrController extends Controller
     private function publicFileUrl(string $path): string
     {
         return route('qr.file', ['path' => $path], false);
+    }
+
+    private function redirectToRoute(string $route, array $parameters = []): RedirectResponse
+    {
+        return new RedirectResponse(route($route, $parameters, false));
     }
 
     private function downloadFilenameFromPath(string $path): string
