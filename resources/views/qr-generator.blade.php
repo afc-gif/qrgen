@@ -170,13 +170,8 @@
 
         .qr-result {
             text-align: center;
-            margin-top: 2rem;
-            padding-top: 2rem;
-            border-top: 2px solid #e9ecef;
-        }
-
-        [data-theme="dark"] .qr-result {
-            border-top-color: #495057;
+            margin-top: 0;
+            padding-top: 0;
         }
 
         .qr-image {
@@ -340,7 +335,7 @@
 
     <div class="card">
         <div class="card-header">
-            <h1 class="card-title">QR Generator</h1>
+            <h1 class="card-title">{{ $isResultPage ? 'QR Code Ready' : 'QR Generator' }}</h1>
         </div>
         <div class="card-body">
             @if ($errors->any())
@@ -353,45 +348,7 @@
                 </div>
             @endif
 
-            <form action="{{ route('qr.generate') }}" method="POST" enctype="multipart/form-data" id="qrForm">
-                @csrf
-                <div class="form-group">
-                    <label for="url" class="form-label">Enter URL</label>
-                    <input
-                        type="url"
-                        class="form-control @error('url') is-invalid @enderror"
-                        id="url"
-                        name="url"
-                        placeholder="https://example.com"
-                        value="{{ old('url', $originalUrl ?? '') }}"
-                        required
-                    >
-                    <small class="form-text">
-                        Include the full URL with <code>https://</code> or <code>http://</code>
-                    </small>
-                </div>
-
-                <div class="form-group">
-                    <label for="logo" class="form-label">Logo (optional)</label>
-                    <input
-                        type="file"
-                        class="form-control @error('logo') is-invalid @enderror"
-                        id="logo"
-                        name="logo"
-                        accept="image/*"
-                    >
-                    <small class="form-text">
-                        Upload an image up to 2 MB to place in the center of the QR code.
-                    </small>
-                    <img id="logoPreview" class="logo-preview" alt="Logo preview">
-                </div>
-
-                <button type="submit" class="btn btn-primary w-100">
-                    <i class="bi bi-qr-code"></i> Generate QR Code
-                </button>
-            </form>
-
-            @if ($qrCode)
+            @if ($isResultPage && $qrCode)
                 <div class="qr-result">
                     <img src="{{ $qrCode }}" alt="Generated QR Code" class="qr-image">
 
@@ -406,11 +363,52 @@
                         <a href="{{ route('qr.download') }}" class="btn btn-primary">
                             <i class="bi bi-download"></i> Download PNG
                         </a>
+                        <a href="{{ $qrCode }}" target="_blank" rel="noopener" class="btn btn-secondary">
+                            <i class="bi bi-eye"></i> Open Preview
+                        </a>
                         <a href="{{ route('qr.reset') }}" class="btn btn-secondary">
                             <i class="bi bi-arrow-repeat"></i> Generate Another
                         </a>
                     </div>
                 </div>
+            @else
+                <form action="{{ route('qr.generate') }}" method="POST" enctype="multipart/form-data" id="qrForm">
+                    @csrf
+                    <div class="form-group">
+                        <label for="url" class="form-label">Enter URL</label>
+                        <input
+                            type="url"
+                            class="form-control @error('url') is-invalid @enderror"
+                            id="url"
+                            name="url"
+                            placeholder="https://example.com"
+                            value="{{ old('url', $originalUrl ?? '') }}"
+                            required
+                        >
+                        <small class="form-text">
+                            Include the full URL with <code>https://</code> or <code>http://</code>
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="logo" class="form-label">Logo (optional)</label>
+                        <input
+                            type="file"
+                            class="form-control @error('logo') is-invalid @enderror"
+                            id="logo"
+                            name="logo"
+                            accept="image/*"
+                        >
+                        <small class="form-text">
+                            Upload an image up to 2 MB to place in the center of the QR code.
+                        </small>
+                        <img id="logoPreview" class="logo-preview" alt="Logo preview">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-qr-code"></i> Generate QR Code
+                    </button>
+                </form>
             @endif
         </div>
     </div>

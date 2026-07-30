@@ -21,6 +21,25 @@ class QrController extends Controller
      */
     public function show(): View
     {
+        return view('qr-generator', $this->qrViewData(false));
+    }
+
+    /**
+     * Show the generated QR code preview and download actions.
+     */
+    public function result(): View|RedirectResponse
+    {
+        $data = $this->qrViewData(true);
+
+        if (!$data['qrCode']) {
+            return redirect()->route('qr.show');
+        }
+
+        return view('qr-generator', $data);
+    }
+
+    private function qrViewData(bool $isResultPage): array
+    {
         $qrCode = null;
         $originalUrl = null;
         $filename = null;
@@ -36,7 +55,7 @@ class QrController extends Controller
             $logoUrl = $this->publicFileUrl(session('logo_path'));
         }
 
-        return view('qr-generator', compact('qrCode', 'originalUrl', 'filename', 'logoUrl'));
+        return compact('qrCode', 'originalUrl', 'filename', 'logoUrl', 'isResultPage');
     }
 
     /**
@@ -98,7 +117,7 @@ class QrController extends Controller
                 'logo_path' => $logoPath,
             ]);
 
-            return redirect()->route('qr.show');
+            return redirect()->route('qr.result');
         } catch (Throwable $e) {
             Log::error('Failed to generate QR code.', [
                 'url' => $request->input('url'),
