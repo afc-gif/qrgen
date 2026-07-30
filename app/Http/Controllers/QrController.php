@@ -10,7 +10,9 @@ use Endroid\QrCode\QrCode;
 use Endroid\QrCode\Writer\PngWriter;
 use Endroid\QrCode\ErrorCorrectionLevel;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Throwable;
 
 class QrController extends Controller
 {
@@ -97,7 +99,13 @@ class QrController extends Controller
             ]);
 
             return redirect()->route('qr.show');
-        } catch (\Exception $e) {
+        } catch (Throwable $e) {
+            Log::error('Failed to generate QR code.', [
+                'url' => $request->input('url'),
+                'message' => $e->getMessage(),
+                'exception' => $e,
+            ]);
+
             return redirect()->back()
                 ->withInput()
                 ->withErrors(['url' => 'Failed to generate QR code. Please try again.']);
@@ -180,8 +188,11 @@ class QrController extends Controller
                     Storage::disk('public')->delete($file);
                 }
             }
-        } catch (\Exception $e) {
-            // Silently fail cleanup
+        } catch (Throwable $e) {
+            Log::warning('Failed to clean up generated files.', [
+                'directory' => $directory,
+                'message' => $e->getMessage(),
+            ]);
         }
     }
 
