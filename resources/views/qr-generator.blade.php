@@ -360,7 +360,7 @@
                     </div>
 
                     <div class="btn-group-actions">
-                        <a href="{{ route('qr.download') }}" class="btn btn-primary">
+                        <a href="{{ $downloadUrl }}" class="btn btn-primary">
                             <i class="bi bi-download"></i> Download PNG
                         </a>
                         <a href="{{ $qrCode }}" target="_blank" rel="noopener" class="btn btn-secondary">

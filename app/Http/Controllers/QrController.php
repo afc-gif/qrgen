@@ -27,9 +27,9 @@ class QrController extends Controller
     /**
      * Show the generated QR code preview and download actions.
      */
-    public function result(): View|RedirectResponse
+    public function result(?string $filename = null): View|RedirectResponse
     {
-        $data = $this->qrViewData(true);
+        $data = $this->qrViewData(true, $filename);
 
         if (!$data['qrCode']) {
             return redirect()->route('qr.show');
@@ -38,24 +38,37 @@ class QrController extends Controller
         return view('qr-generator', $data);
     }
 
-    private function qrViewData(bool $isResultPage): array
+    private function qrViewData(bool $isResultPage, ?string $resultFilename = null): array
     {
         $qrCode = null;
         $originalUrl = null;
         $filename = null;
         $logoUrl = null;
+        $downloadUrl = route('qr.download', [], false);
+
+        if ($resultFilename) {
+            $path = 'qr-codes/' . basename($resultFilename);
+
+            if ($this->isGeneratedPublicPath($path) && Storage::disk('public')->exists($path)) {
+                $qrCode = $this->publicFileUrl($path);
+                $filename = $this->downloadFilenameFromPath($path);
+                $downloadUrl = route('qr.download.file', ['filename' => basename($path)], false);
+            }
+        }
 
         if (session()->has('qr_code_path')) {
-            $qrCode = $this->publicFileUrl(session('qr_code_path'));
+            $sessionPath = session('qr_code_path');
+            $qrCode ??= $this->publicFileUrl($sessionPath);
             $originalUrl = session('original_url');
-            $filename = session('filename');
+            $filename ??= session('filename');
+            $downloadUrl = route('qr.download.file', ['filename' => basename($sessionPath)], false);
         }
 
         if (session()->has('logo_path')) {
             $logoUrl = $this->publicFileUrl(session('logo_path'));
         }
 
-        return compact('qrCode', 'originalUrl', 'filename', 'logoUrl', 'isResultPage');
+        return compact('qrCode', 'originalUrl', 'filename', 'logoUrl', 'isResultPage', 'downloadUrl');
     }
 
     /**
@@ -117,7 +130,7 @@ class QrController extends Controller
                 'logo_path' => $logoPath,
             ]);
 
-            return redirect()->route('qr.result');
+            return redirect()->route('qr.result.file', ['filename' => basename($path)]);
         } catch (Throwable $e) {
             Log::error('Failed to generate QR code.', [
                 'url' => $request->input('url'),
@@ -134,21 +147,26 @@ class QrController extends Controller
     /**
      * Download the generated QR code.
      */
-    public function download(): \Symfony\Component\HttpFoundation\BinaryFileResponse|RedirectResponse
+    public function download(?string $filename = null): \Symfony\Component\HttpFoundation\BinaryFileResponse|RedirectResponse
     {
-        if (!session()->has('qr_code_path')) {
+        $sessionPath = session('qr_code_path');
+        $path = $filename ? 'qr-codes/' . basename($filename) : $sessionPath;
+
+        if (!$path) {
             return redirect()->route('qr.show');
         }
 
-        $path = storage_path('app/public/' . session('qr_code_path'));
-        $filename = session('filename');
+        $fullPath = storage_path('app/public/' . $path);
+        $downloadName = $path === $sessionPath
+            ? session('filename', $this->downloadFilenameFromPath($path))
+            : $this->downloadFilenameFromPath($path);
 
-        if (!file_exists($path)) {
+        if (!$this->isGeneratedPublicPath($path) || !file_exists($fullPath)) {
             return redirect()->route('qr.show')
                 ->withErrors(['message' => 'QR code file not found.']);
         }
 
-        return response()->download($path, $filename);
+        return response()->download($fullPath, $downloadName);
     }
 
     public function file(string $path): BinaryFileResponse
@@ -222,7 +240,12 @@ class QrController extends Controller
 
     private function publicFileUrl(string $path): string
     {
-        return route('qr.file', ['path' => $path]);
+        return route('qr.file', ['path' => $path], false);
+    }
+
+    private function downloadFilenameFromPath(string $path): string
+    {
+        return pathinfo($path, PATHINFO_FILENAME) . '.png';
     }
 
     private function isGeneratedPublicPath(string $path): bool
